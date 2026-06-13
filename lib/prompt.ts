@@ -36,18 +36,27 @@ export function buildCodexPrompt(brief: LineBrief): string {
     .join(" / ");
 
   const backendBlock = brief.needBackend
-    ? `## バックエンド（必要）
+    ? `## バックエンド（必要）— Firebase
 
-このアプリは状態の保存（会員情報・ポイント・予約・注文など）が必要です。**Vercel Serverless Functions** を使ってください。
+このアプリは状態の保存（会員情報・ポイント・予約・注文など）が必要です。**Firebase** を使ってください（**Prisma / Neon / 独自サーバは使わない**）。
 
-- \`api/\` ディレクトリに TypeScript の関数を置く（例: \`api/users/me.ts\`, \`api/points/index.ts\`）。
-- DB が必要なら **Prisma 5.22.0**（6.x/7.x 非互換なので必ず 5.22.0）+ **Neon PostgreSQL** を想定したスキーマを \`prisma/schema.prisma\` に書く。
-- DB 接続文字列は \`process.env.DATABASE_URL\` から読む。\`.env.example\` に \`DATABASE_URL=\` を記載。
-- **LIFF の id_token 検証**: フロントは \`liff.getIDToken()\` で取得したトークンを Authorization ヘッダで送り、サーバ側は \`https://api.line.me/oauth2/v2.1/verify\` で検証する方式にする（\`LINE_CHANNEL_ID\` を \`.env.example\` に記載）。
-- DB が無くても動くよう、未設定時はメモリ/モックでフォールバックして画面が壊れないようにする。`
+- **Firestore** をデータストアにする（コレクション例: \`users\`, \`points\`, \`bookings\`, \`orders\`）。
+- フロントから **Firebase JS SDK v10+（modular API）** で直接読み書きする（\`firebase/app\`, \`firebase/firestore\`, 必要なら \`firebase/auth\`, \`firebase/functions\`）。
+- Firebase 設定は \`src/lib/firebase.ts\` にまとめ、値は **\`import.meta.env.VITE_FIREBASE_*\`** から読む。\`.env.example\` に以下を記載:
+  \`\`\`
+  VITE_FIREBASE_API_KEY=
+  VITE_FIREBASE_AUTH_DOMAIN=
+  VITE_FIREBASE_PROJECT_ID=
+  VITE_FIREBASE_STORAGE_BUCKET=
+  VITE_FIREBASE_MESSAGING_SENDER_ID=
+  VITE_FIREBASE_APP_ID=
+  \`\`\`
+- **LIFF の id_token 検証**が必要な処理（ポイント付与など改ざんされると困るもの）は **Firebase Cloud Functions**（\`functions/\` ディレクトリ・Node）で受け、\`https://api.line.me/oauth2/v2.1/verify\` で検証してから Firestore を更新する。軽微なものはクライアント直書き + Firestore セキュリティルールで可。
+- \`firestore.rules\`（最低限のセキュリティルール）と \`firebase.json\` も用意する。
+- Firebase 設定が未設定でも画面が壊れないよう、未設定時はモック/ローカル状態でフォールバックする。`
     : `## バックエンド（不要）
 
-このアプリはサーバ保存を必要としません。状態は **localStorage** と Zustand で保持し、フロントエンド完結（Vercel 静的ホスティング）で動くようにしてください。\`api/\` は作らなくてよい。`;
+このアプリはサーバ保存を必要としません。状態は **localStorage** と Zustand で保持し、フロントエンド完結で動くようにしてください。Firebase / api は作らなくてよい。`;
 
   const imageBlock = brief.generateImages
     ? `## 画像（重要）
@@ -116,8 +125,8 @@ ${brief.customInstructions.trim()}
 - **状態管理: Zustand**
 - **スタイリング: Tailwind CSS 3.4.17**（4.x は使わない / PostCSS 構成が違うため）
 - **LINE 連携: LIFF SDK v2**（\`@line/liff\`）
-- **ホスティング: Vercel**（\`vercel.json\` を用意）
-${brief.needBackend ? "- **バックエンド: Vercel Serverless Functions（api/）+ 必要なら Prisma 5.22.0 + Neon PostgreSQL**" : "- バックエンドなし（フロント完結 / localStorage）"}
+- **ホスティング: Vercel または Firebase Hosting**（\`vercel.json\` を用意。SPA rewrites）
+${brief.needBackend ? "- **バックエンド: Firebase（Firestore + 必要なら Firebase Auth / Cloud Functions）。Prisma / Neon / 独自サーバは使わない**" : "- バックエンドなし（フロント完結 / localStorage）"}
 
 # 🚨 LINE ミニアプリ 審査の必須要件（過去のリジェクト事例より・厳守）
 1. **認証は必ず LIFF SDK** を使う（\`liff.init({ liffId })\` → \`liff.getProfile()\` / \`liff.getIDToken()\`）。
@@ -156,6 +165,8 @@ ${backendBlock}
 - **モバイルファースト**（375px 基準。LINE の WebView を想定）。全画面（LIFF size: full）。
 - LINE らしい清潔感。グラデーション・角丸・適切な余白・タップしやすいボタン（44px 以上）。
 - 主色 ${brief.primaryColor} / アクセント ${brief.accentColor} を基調に、${styleStr} のテイスト。
+- 🚨 **絵文字を一切使わない**（ボタン・見出し・ラベル・本文すべて）。アイコンが要るときは **インライン SVG**（Heroicons 風の線画）で描く。絵文字（📱💬🎯✨ 等）は禁止。
+- 🚨 **フォントは大きめ**にする。本文・入力欄・ボタンは最低 **16px（1rem）以上**、できれば 17〜18px。見出しはさらに大きく（24px 以上）。行間も広め（line-height 1.6 以上）。高齢者や視力の弱い人にも読みやすく。
 - ローディング / 空状態 / エラー状態も用意。
 - アクセシビリティ（alt、aria-label、コントラスト）。
 - 文言はすべて **日本語**。
@@ -168,23 +179,23 @@ ${customBlock}
 
 # 生成するファイル構成（目安）
 \`\`\`
-package.json            # name, scripts(dev/build/preview), deps(react,react-dom,zustand,@line/liff), devDeps(vite,@vitejs/plugin-react,typescript,tailwindcss@3.4.17,postcss,autoprefixer)
+package.json            # name, scripts(dev/build/preview), deps(react,react-dom,zustand,@line/liff${brief.needBackend ? ",firebase" : ""}), devDeps(vite,@vitejs/plugin-react,typescript,tailwindcss@3.4.17,postcss,autoprefixer)
 index.html              # 日本語 title + LIFF SDK script + #root
 vite.config.ts
 tsconfig.json
 tailwind.config.js      # content 設定
 postcss.config.js
-.env.example            # VITE_LIFF_ID= など
+.env.example            # VITE_LIFF_ID=${brief.needBackend ? " / VITE_FIREBASE_*" : ""} など
 vercel.json             # SPA rewrites（"/(.*)" -> "/index.html"）
 src/
   main.tsx
   App.tsx
   lib/liff.ts           # liff.init ラッパ（VITE_LIFF_ID 使用 / 未設定フォールバック）
-  store/                # Zustand ストア
+${brief.needBackend ? "  lib/firebase.ts       # Firebase 初期化（VITE_FIREBASE_* 使用 / 未設定フォールバック）\n" : ""}  store/                # Zustand ストア
   features/             # 各機能の画面
-  components/           # 共通 UI（モーダル含む）
+  components/           # 共通 UI（モーダル含む / アイコンはインライン SVG）
   index.css             # Tailwind ディレクティブ
-${brief.needBackend ? "api/                    # Vercel Serverless Functions\nprisma/schema.prisma    # 必要なら（Prisma 5.22.0）\n" : ""}public/images/          # 画像（生成する場合）
+${brief.needBackend ? "functions/              # Firebase Cloud Functions（LIFF id_token 検証が要る処理）\nfirestore.rules         # Firestore セキュリティルール\nfirebase.json           # Firebase 設定\n" : ""}public/images/          # 画像（生成する場合）
 README.md               # セットアップ・デプロイ手順
 LINE入力情報.md          # ★ LINE 審査申請まとめ（下記テンプレを埋めて必ず生成）
 \`\`\`

@@ -437,6 +437,66 @@ function tinted(accent: Accent, mono = false) {
   return `w-full bg-white border-2 ${a.border} rounded-xl px-4 py-3.5 text-lg leading-relaxed tracking-wide text-stone-800 placeholder:text-stone-400 focus:outline-none focus:ring-2 ${a.ring} shadow-sm ${mono ? "font-mono text-sm" : ""}`;
 }
 
+type IconName = "phone" | "chat" | "doc" | "target" | "building";
+
+function FieldIcon({ name, className = "" }: { name: IconName; className?: string }) {
+  const common = {
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.8,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    viewBox: "0 0 24 24",
+    className: `w-8 h-8 ${className}`,
+    "aria-hidden": true,
+  };
+  switch (name) {
+    case "phone":
+      return (
+        <svg {...common}>
+          <rect x="6.5" y="3" width="11" height="18" rx="2.5" />
+          <line x1="10.5" y1="18" x2="13.5" y2="18" />
+        </svg>
+      );
+    case "chat":
+      return (
+        <svg {...common}>
+          <path d="M4 5.5h16v10H9l-4 3.5v-3.5H4z" />
+        </svg>
+      );
+    case "doc":
+      return (
+        <svg {...common}>
+          <path d="M7 3h7l4 4v14H7z" />
+          <path d="M13.5 3v4.5H18" />
+          <line x1="9.5" y1="13" x2="15.5" y2="13" />
+          <line x1="9.5" y1="16.5" x2="15.5" y2="16.5" />
+        </svg>
+      );
+    case "target":
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="8" />
+          <circle cx="12" cy="12" r="4" />
+          <circle cx="12" cy="12" r="1" />
+        </svg>
+      );
+    case "building":
+      return (
+        <svg {...common}>
+          <rect x="5" y="3.5" width="14" height="17" rx="1.5" />
+          <line x1="9" y1="7.5" x2="9" y2="7.5" />
+          <line x1="12" y1="7.5" x2="12" y2="7.5" />
+          <line x1="15" y1="7.5" x2="15" y2="7.5" />
+          <line x1="9" y1="11" x2="9" y2="11" />
+          <line x1="12" y1="11" x2="12" y2="11" />
+          <line x1="15" y1="11" x2="15" y2="11" />
+          <path d="M10 20.5v-4h4v4" />
+        </svg>
+      );
+  }
+}
+
 function ColoredField({
   accent,
   icon,
@@ -446,7 +506,7 @@ function ColoredField({
   children,
 }: {
   accent: Accent;
-  icon: string;
+  icon: IconName;
   label: string;
   hint?: string;
   badge?: string;
@@ -456,8 +516,8 @@ function ColoredField({
   return (
     <div className={`rounded-2xl ${a.bg} border-2 ${a.border} p-4 md:p-5 space-y-3 shadow-sm`}>
       <div className="flex items-start gap-4">
-        <span className={`w-14 h-14 rounded-2xl ${a.iconBg} ${a.ico} flex items-center justify-center text-3xl shrink-0 shadow-sm`}>
-          {icon}
+        <span className={`w-14 h-14 rounded-2xl ${a.iconBg} ${a.ico} flex items-center justify-center shrink-0 shadow-sm`}>
+          <FieldIcon name={icon} />
         </span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 flex-wrap">
@@ -468,7 +528,7 @@ function ColoredField({
               </span>
             )}
           </div>
-          {hint && <p className="text-base text-stone-600 leading-relaxed mt-1.5">{hint}</p>}
+          {hint && <p className="text-lg text-stone-600 leading-relaxed mt-1.5">{hint}</p>}
         </div>
       </div>
       <div>{children}</div>
@@ -556,9 +616,9 @@ function SuggestBox({
               アシュラ思考中…
             </>
           ) : value.trim() ? (
-            <>✨ 上の「{value.trim().slice(0, 14)}{value.trim().length > 14 ? "…" : ""}」を活かして AI に案を出してもらう</>
+            <>上の「{value.trim().slice(0, 14)}{value.trim().length > 14 ? "…" : ""}」を活かして AI に案を出してもらう</>
           ) : (
-            <>✨ 他の入力欄も読んで AI に案を出してもらう（空欄でも OK）</>
+            <>他の入力欄も読んで AI に案を出してもらう（空欄でも OK）</>
           )}
         </button>
         {open && !loading && (items.length > 0 || error) && (
@@ -663,11 +723,11 @@ function Step1({
     <Card
       badge="Step 01"
       title="アプリの基本情報"
-      subtitle="ざっくり単語を入れるだけで OK。✨ボタンでアシュラが複数案を提案します（空欄なら他の項目から推測）。"
+      subtitle="ざっくり単語を入れるだけで OK。「AI に案を出してもらう」ボタンでアシュラが複数案を提案します（空欄なら他の項目から推測）。"
     >
       <ColoredField
         accent="emerald"
-        icon="📱"
+        icon="phone"
         label="アプリ名（LINE チャネル名）"
         badge="App Name"
         hint="ユーザーに見える名前。LINE 申請のチャネル名にもなります。"
@@ -685,7 +745,7 @@ function Step1({
 
       <ColoredField
         accent="rose"
-        icon="💬"
+        icon="chat"
         label="一言キャッチ"
         badge="Tagline"
         hint="トップやストア説明に出る短い 1 行。"
@@ -703,7 +763,7 @@ function Step1({
 
       <ColoredField
         accent="sky"
-        icon="📝"
+        icon="doc"
         label="サービス概要"
         badge="Description"
         hint="誰の・どんな課題を・このミニアプリでどう解決するか。"
@@ -722,7 +782,7 @@ function Step1({
 
       <ColoredField
         accent="violet"
-        icon="🎯"
+        icon="target"
         label="想定ユーザー"
         badge="Audience"
         hint="誰が・どんなシーンで使うか。"
@@ -937,12 +997,12 @@ function Step3({
         subtitle="提供元や URL を入れておくと、LINE 審査申請用ドキュメントを一緒に作成します。空欄でも「要記入」で雛形が出ます。"
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <ColoredField accent="teal" icon="🏢" label="提供元（事業者名）" badge="Provider" hint="チャネル説明の末尾「提供元：〜」に入ります。">
+          <ColoredField accent="teal" icon="building" label="提供元（事業者名）" badge="Provider" hint="チャネル説明の末尾「提供元：〜」に入ります。">
             <input
               className={tinted("teal")}
               value={brief.provider}
               onChange={(e) => setBrief({ ...brief, provider: e.target.value })}
-              placeholder="例: 株式会社WAGA"
+              placeholder="例: 株式会社あおぞら商店"
             />
           </ColoredField>
           <Field label="事業者区分">
@@ -1249,8 +1309,8 @@ function ResultView({ id, onReset }: { id: string; onReset: () => void }) {
           </div>
 
           <div className="rounded-2xl bg-white border border-stone-200 shadow-sm p-6 space-y-3">
-            <h2 className="text-xl font-bold text-stone-800 flex items-center gap-2">
-              📋 LINE入力情報.md（審査申請まとめ）
+            <h2 className="text-2xl font-bold text-stone-800 flex items-center gap-2">
+              LINE入力情報.md（審査申請まとめ）
             </h2>
             {appInfo ? (
               <pre className="whitespace-pre-wrap break-words bg-stone-50 border border-stone-200 rounded-xl p-4 text-sm leading-relaxed text-stone-700 max-h-[480px] overflow-y-auto">

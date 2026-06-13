@@ -248,7 +248,7 @@ export async function POST(req: NextRequest) {
         const hasAppInfo = fs.existsSync(path.join(projectDir, "LINE入力情報.md"));
         send("step", {
           kind: "done",
-          text: `完成: ${fileCount} ファイル生成${hasAppInfo ? " / LINE入力情報.md あり" : " / ⚠ LINE入力情報.md 未生成"}`,
+          text: `完成: ${fileCount} ファイル生成${hasAppInfo ? " / LINE入力情報.md あり" : " / LINE入力情報.md 未生成"}`,
         });
         send("done", { id });
       } catch (err) {
