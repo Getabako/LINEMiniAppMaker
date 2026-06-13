@@ -1,0 +1,269 @@
+import fs from "node:fs";
+import path from "node:path";
+import { NextRequest } from "next/server";
+import { getCodex } from "@/lib/codex/client";
+import { paths, ensureDir, newId } from "@/lib/paths";
+import { buildCodexPrompt, LineBrief } from "@/lib/prompt";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+type Body = { brief: LineBrief };
+
+export async function POST(req: NextRequest) {
+  const { brief } = (await req.json()) as Body;
+  if (!brief || !brief.appName?.trim()) {
+    return new Response("brief.appName required", { status: 400 });
+  }
+
+  const id = newId();
+  const projectDir = paths.projectDir(id);
+  ensureDir(projectDir);
+  // 後段の /api/publish などが参照できるよう brief を保存
+  fs.writeFileSync(
+    path.join(projectDir, "_brief.json"),
+    JSON.stringify(brief, null, 2),
+  );
+
+  const refs = (brief.characterRefPaths || []).filter((p) => {
+    try { return !!p && fs.existsSync(p) && fs.statSync(p).isFile(); } catch { return false; }
+  });
+  const briefForPrompt: LineBrief = { ...brief, characterRefPaths: refs };
+  const prompt = buildCodexPrompt(briefForPrompt);
+  const srv = await getCodex();
+
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      let closed = false;
+      const send = (event: string, data: unknown) => {
+        if (closed) return;
+        try {
+          controller.enqueue(
+            encoder.encode(
+              `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`,
+            ),
+          );
+        } catch {}
+      };
+      const closeStream = () => {
+        if (closed) return;
+        closed = true;
+        try { controller.close(); } catch {}
+      };
+
+      send("init", {
+        id,
+        projectDir,
+        willGenerateImages: brief.generateImages,
+      });
+
+      let threadId: string | null = null;
+      let turnId: string | null = null;
+      let turnDone = false;
+      const startedAt = Date.now();
+
+      const heartbeat = setInterval(() => {
+        const sec = Math.floor((Date.now() - startedAt) / 1000);
+        send("heartbeat", { elapsedSec: sec });
+      }, 3000);
+
+      const onStderr = (text: string) => {
+        const t = text.trim();
+        if (t) send("stderr", { text: t.slice(0, 500) });
+      };
+      srv.on("stderr", onStderr);
+
+      const onNotif = (notif: any) => {
+        const { method, params } = notif;
+        if (!params) return;
+
+        switch (method) {
+          case "thread/started":
+            threadId = params.thread?.id;
+            send("step", { kind: "thread", text: `thread: ${threadId}` });
+            return;
+          case "turn/started":
+            send("step", { kind: "turn", text: `turn 開始` });
+            return;
+          case "thread/status/changed":
+            if (params.status?.type) {
+              send("step", {
+                kind: params.status.type === "systemError" ? "error" : "status",
+                text: `status: ${params.status.type}${
+                  params.status.activeFlags?.length
+                    ? " " + params.status.activeFlags.join(",")
+                    : ""
+                }`,
+              });
+              if (params.status.type === "systemError") {
+                turnDone = true;
+              }
+            }
+            return;
+          case "turn/plan/updated": {
+            const plan = (params.plan ?? []) as Array<{ step: string; status: string }>;
+            const summary = plan
+              .map((p) => `${p.status === "completed" ? "[done]" : p.status === "inProgress" ? "[run]" : "[wait]"} ${p.step}`)
+              .join(" / ");
+            if (summary) send("step", { kind: "plan", text: summary });
+            return;
+          }
+          case "item/started": {
+            const item = params.item;
+            if (!item) return;
+            if (item.type === "agentMessage") return;
+            if (item.type === "reasoning") {
+              send("step", { kind: "reasoning", text: "思考中…" });
+            } else if (item.type === "commandExecution") {
+              const cmd = Array.isArray(item.command)
+                ? item.command.join(" ")
+                : String(item.command ?? "");
+              send("step", { kind: "command", text: `$ ${cmd.slice(0, 200)}` });
+            } else if (item.type === "fileChange") {
+              const files = (item.changes || []).map((c: any) => c.path).join(", ");
+              send("step", { kind: "file", text: files });
+            } else if (item.type === "webSearch") {
+              send("step", { kind: "web", text: `web search: ${item.query ?? ""}` });
+            } else if (item.type === "mcpToolCall") {
+              send("step", { kind: "tool", text: `${item.server}/${item.tool}` });
+            } else if (item.type === "dynamicToolCall") {
+              send("step", { kind: "tool", text: item.tool });
+            } else if (item.type === "imageView") {
+              send("step", { kind: "image", text: `imageView` });
+            } else {
+              send("step", { kind: "info", text: item.type });
+            }
+            return;
+          }
+          case "item/agentMessage/delta":
+            send("delta", { text: params.delta ?? "" });
+            return;
+          case "item/reasoning/summaryTextDelta":
+            send("reasoning_delta", { text: params.delta ?? "" });
+            return;
+          case "item/commandExecution/outputDelta":
+            send("cmd_output", { text: String(params.chunk ?? params.output ?? "").slice(0, 200) });
+            return;
+          case "item/completed": {
+            const item = params.item;
+            if (!item) return;
+            if (item.type === "agentMessage" && item.text) {
+              send("agent", { text: item.text });
+            } else if (item.type === "commandExecution") {
+              send("step", {
+                kind: item.exitCode === 0 ? "command-ok" : "command-err",
+                text: `exit ${item.exitCode}`,
+              });
+            } else if (item.type === "fileChange") {
+              const files = (item.changes || []).map((c: any) => c.path).join(", ");
+              send("step", { kind: "file-ok", text: `書き込み完了: ${files}` });
+            }
+            return;
+          }
+          case "turn/completed":
+            turnDone = true;
+            return;
+        }
+      };
+
+      srv.on("notification", onNotif);
+
+      const cleanup = () => {
+        clearInterval(heartbeat);
+        srv.off("notification", onNotif);
+        srv.off("stderr", onStderr);
+      };
+
+      req.signal.addEventListener("abort", () => {
+        if (threadId && turnId) {
+          srv.send("turn/interrupt", { threadId, turnId }).catch(() => {});
+        }
+        cleanup();
+        closeStream();
+      });
+
+      try {
+        const model = process.env.LINEMAKER_MODEL || "gpt-5.5";
+        const effort = process.env.LINEMAKER_EFFORT || "medium";
+        send("step", { kind: "info", text: `thread/start (model=${model}, effort=${effort}, sandbox=danger-full-access)` });
+        const started: any = await srv.send("thread/start", {
+          cwd: projectDir,
+          model,
+          effort,
+          sandbox: "danger-full-access",
+          approvalPolicy: "never",
+          serviceName: "lineminiappmaker",
+        });
+        threadId = started.thread.id;
+
+        const turn: any = await srv.send("turn/start", {
+          threadId,
+          input: [{ type: "text", text: prompt }],
+          cwd: projectDir,
+          model,
+          effort,
+          sandboxPolicy: { type: "dangerFullAccess" },
+          approvalPolicy: "never",
+        });
+        turnId = turn.turn.id;
+
+        await new Promise<void>((resolve) => {
+          const tick = setInterval(() => {
+            if (turnDone) {
+              clearInterval(tick);
+              resolve();
+            }
+          }, 200);
+          req.signal.addEventListener("abort", () => {
+            clearInterval(tick);
+            resolve();
+          });
+        });
+
+        // 成功判定: LINE ミニアプリは package.json が生成されていれば成功とみなす
+        const pkgPath = path.join(projectDir, "package.json");
+        const indexPath = path.join(projectDir, "index.html");
+        if (!fs.existsSync(pkgPath) && !fs.existsSync(indexPath)) {
+          send("error", {
+            message: "package.json / index.html が生成されませんでした（プロジェクトが作られていない可能性）",
+          });
+          cleanup();
+          closeStream();
+          return;
+        }
+
+        // 生成ファイル数をざっくり集計
+        const countFiles = (dir: string): number => {
+          let n = 0;
+          for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+            if (e.name === "node_modules" || e.name === ".git") continue;
+            const full = path.join(dir, e.name);
+            if (e.isDirectory()) n += countFiles(full);
+            else n += 1;
+          }
+          return n;
+        };
+        const fileCount = countFiles(projectDir);
+        const hasAppInfo = fs.existsSync(path.join(projectDir, "LINE入力情報.md"));
+        send("step", {
+          kind: "done",
+          text: `完成: ${fileCount} ファイル生成${hasAppInfo ? " / LINE入力情報.md あり" : " / ⚠ LINE入力情報.md 未生成"}`,
+        });
+        send("done", { id });
+      } catch (err) {
+        send("error", { message: (err as Error).message });
+      } finally {
+        cleanup();
+        closeStream();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+    },
+  });
+}
