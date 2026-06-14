@@ -422,14 +422,14 @@ const inputCls =
 
 type Accent = "sky" | "rose" | "emerald" | "violet" | "amber" | "indigo" | "teal";
 
-const ACCENT: Record<Accent, { border: string; bg: string; ring: string; ico: string; tag: string; iconBg: string }> = {
-  sky:     { border: "border-sky-300",     bg: "bg-sky-50/60",     ring: "focus:ring-sky-300 focus:border-sky-400",     ico: "text-sky-600",     tag: "bg-sky-100 text-sky-700",     iconBg: "bg-sky-100" },
-  rose:    { border: "border-rose-300",    bg: "bg-rose-50/60",    ring: "focus:ring-rose-300 focus:border-rose-400",    ico: "text-rose-600",    tag: "bg-rose-100 text-rose-700",    iconBg: "bg-rose-100" },
-  emerald: { border: "border-emerald-300", bg: "bg-emerald-50/60", ring: "focus:ring-emerald-300 focus:border-emerald-400", ico: "text-emerald-600", tag: "bg-emerald-100 text-emerald-700", iconBg: "bg-emerald-100" },
-  violet:  { border: "border-violet-300",  bg: "bg-violet-50/60",  ring: "focus:ring-violet-300 focus:border-violet-400",  ico: "text-violet-600",  tag: "bg-violet-100 text-violet-700",  iconBg: "bg-violet-100" },
-  amber:   { border: "border-amber-300",   bg: "bg-amber-50/60",   ring: "focus:ring-amber-300 focus:border-amber-400",   ico: "text-amber-600",   tag: "bg-amber-100 text-amber-700",   iconBg: "bg-amber-100" },
-  indigo:  { border: "border-indigo-300",  bg: "bg-indigo-50/60",  ring: "focus:ring-indigo-300 focus:border-indigo-400",  ico: "text-indigo-600",  tag: "bg-indigo-100 text-indigo-700",  iconBg: "bg-indigo-100" },
-  teal:    { border: "border-teal-300",    bg: "bg-teal-50/60",    ring: "focus:ring-teal-300 focus:border-teal-400",    ico: "text-teal-600",    tag: "bg-teal-100 text-teal-700",    iconBg: "bg-teal-100" },
+const ACCENT: Record<Accent, { border: string; bg: string; ring: string; ico: string; tag: string; iconBg: string; title: string; head: string }> = {
+  sky:     { border: "border-sky-300",     bg: "bg-sky-50/60",     ring: "focus:ring-sky-300 focus:border-sky-400",     ico: "text-sky-600",     tag: "bg-sky-100 text-sky-700",     iconBg: "bg-sky-100",     title: "text-sky-700",     head: "bg-sky-100/70" },
+  rose:    { border: "border-rose-300",    bg: "bg-rose-50/60",    ring: "focus:ring-rose-300 focus:border-rose-400",    ico: "text-rose-600",    tag: "bg-rose-100 text-rose-700",    iconBg: "bg-rose-100",    title: "text-rose-700",    head: "bg-rose-100/70" },
+  emerald: { border: "border-emerald-300", bg: "bg-emerald-50/60", ring: "focus:ring-emerald-300 focus:border-emerald-400", ico: "text-emerald-600", tag: "bg-emerald-100 text-emerald-700", iconBg: "bg-emerald-100", title: "text-emerald-700", head: "bg-emerald-100/70" },
+  violet:  { border: "border-violet-300",  bg: "bg-violet-50/60",  ring: "focus:ring-violet-300 focus:border-violet-400",  ico: "text-violet-600",  tag: "bg-violet-100 text-violet-700",  iconBg: "bg-violet-100",  title: "text-violet-700",  head: "bg-violet-100/70" },
+  amber:   { border: "border-amber-300",   bg: "bg-amber-50/60",   ring: "focus:ring-amber-300 focus:border-amber-400",   ico: "text-amber-600",   tag: "bg-amber-100 text-amber-700",   iconBg: "bg-amber-100",   title: "text-amber-700",   head: "bg-amber-100/70" },
+  indigo:  { border: "border-indigo-300",  bg: "bg-indigo-50/60",  ring: "focus:ring-indigo-300 focus:border-indigo-400",  ico: "text-indigo-600",  tag: "bg-indigo-100 text-indigo-700",  iconBg: "bg-indigo-100",  title: "text-indigo-700",  head: "bg-indigo-100/70" },
+  teal:    { border: "border-teal-300",    bg: "bg-teal-50/60",    ring: "focus:ring-teal-300 focus:border-teal-400",    ico: "text-teal-600",    tag: "bg-teal-100 text-teal-700",    iconBg: "bg-teal-100",    title: "text-teal-700",    head: "bg-teal-100/70" },
 };
 
 function tinted(accent: Accent, mono = false) {
@@ -514,16 +514,17 @@ function ColoredField({
 }) {
   const a = ACCENT[accent];
   return (
-    <div className={`rounded-2xl ${a.bg} border-2 ${a.border} p-4 md:p-5 space-y-3 shadow-sm`}>
-      <div className="flex items-start gap-4">
-        <span className={`w-14 h-14 rounded-2xl ${a.iconBg} ${a.ico} flex items-center justify-center shrink-0 shadow-sm`}>
+    <div className={`rounded-2xl ${a.bg} border-2 ${a.border} overflow-hidden shadow-sm`}>
+      {/* 見出し帯：セクションの区切りを明確にする */}
+      <div className={`flex items-start gap-4 px-4 md:px-5 pt-4 pb-3 ${a.head} border-b-2 ${a.border}`}>
+        <span className={`w-14 h-14 rounded-2xl bg-white ${a.ico} flex items-center justify-center shrink-0 shadow-sm ring-2 ring-white`}>
           <FieldIcon name={icon} />
         </span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-2xl font-bold text-stone-800 tracking-wide leading-snug">{label}</span>
+            <span className={`text-2xl font-extrabold ${a.title} tracking-wide leading-snug`}>{label}</span>
             {badge && (
-              <span className={`text-sm font-bold tracking-widest uppercase px-3 py-1 rounded-full ${a.tag}`}>
+              <span className={`text-sm font-bold tracking-widest uppercase px-3 py-1 rounded-full ${a.tag} shadow-sm`}>
                 {badge}
               </span>
             )}
@@ -531,7 +532,8 @@ function ColoredField({
           {hint && <p className="text-lg text-stone-600 leading-relaxed mt-1.5">{hint}</p>}
         </div>
       </div>
-      <div>{children}</div>
+      {/* 入力欄 */}
+      <div className="px-4 md:px-5 py-4">{children}</div>
     </div>
   );
 }
