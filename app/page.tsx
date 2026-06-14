@@ -972,7 +972,7 @@ function Step2({
               onChange={(e) => setBrief({ ...brief, needBackend: e.target.checked })}
               className="accent-emerald-500 scale-125"
             />
-            Vercel Serverless + DB（Prisma/Neon）でデータ保存する
+            Firebase（Firestore）でデータ保存する
           </label>
         </Field>
       </Card>
