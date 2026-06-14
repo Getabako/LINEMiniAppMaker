@@ -736,7 +736,7 @@ function Step1({
           className={tinted("emerald")}
           value={brief.appName}
           onChange={(e) => setBrief({ ...brief, appName: e.target.value })}
-          placeholder="例: わがショップ会員証（適当な単語でも OK）"
+          placeholder="例: サンプル商店 会員証（適当な単語でも OK）"
         />
         <div className="pt-2">
           <SuggestBox field="appName" brief={brief} value={brief.appName} accent="emerald" onPick={(v) => setBrief({ ...brief, appName: v })} />
