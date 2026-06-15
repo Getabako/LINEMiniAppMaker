@@ -104,6 +104,38 @@ const INITIAL: Brief = {
   characterRefPaths: [],
 };
 
+// テスト用のサンプル入力（会員証アプリ）。テスト生成ボタンで一発投入する。
+const SAMPLE_BRIEF: Brief = {
+  appName: "サンプル商店 会員証",
+  tagline: "ピッと提示でポイントが貯まる",
+  description:
+    "来店時に LINE で会員証を提示するとポイントが貯まり、会員ランク・スタンプカード・クーポン・誕生日特典をアプリ内で確認できる店舗向け会員アプリ。",
+  audience: "店舗に来店する 20〜40 代のリピーター客",
+  category: "会員証 / ポイント",
+  primaryColor: "#06C755",
+  accentColor: "#00B900",
+  style: "モダン",
+  styleCustom: "",
+  features: [
+    "LINEログイン（プロフィール表示）",
+    "デジタル会員証（QR / バーコード）",
+    "ポイント管理・履歴",
+    "スタンプカード",
+    "クーポン配布・利用",
+    "ニュース / お知らせ配信",
+  ],
+  featuresCustom: "誕生日を祝う（誕生月に特典クーポンを表示）",
+  provider: "サンプル商店",
+  providerKind: "法人",
+  privacyUrl: "",
+  termsUrl: "",
+  contactEmail: "support@example.com",
+  needBackend: true,
+  generateImages: true,
+  customInstructions: "",
+  characterRefPaths: [],
+};
+
 type Log = { kind: string; text: string; ts: number };
 type Phase = "wizard" | "generating" | "done";
 
@@ -135,13 +167,17 @@ export default function Home() {
   const next = () => setStep((s) => Math.min(s + 1, 2));
   const prev = () => setStep((s) => Math.max(s - 1, 0));
 
-  const startGenerate = async () => {
+  const startGenerate = async (overrideBrief?: Brief) => {
     setPhase("generating");
     setLogs([]);
     setResultId(null);
     append("info", "Codex に LINE ミニアプリ生成を依頼…");
 
-    const briefToSend: Brief = { ...brief, characterRefPaths: refPaths };
+    const base = overrideBrief ?? brief;
+    const briefToSend: Brief = {
+      ...base,
+      characterRefPaths: overrideBrief ? overrideBrief.characterRefPaths : refPaths,
+    };
 
     const res = await fetch("/api/generate", {
       method: "POST",
@@ -267,10 +303,28 @@ export default function Home() {
     <main className="min-h-screen text-stone-800">
       <SiteHeader />
       <div className="max-w-6xl mx-auto px-8 py-10 space-y-10">
-        <SectionTitle
-          title="LINE ミニアプリ Maker"
-          subtitle="if(塾) LINE ミニアプリ自動生成室 — 申請情報まで一式作成"
-        />
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <SectionTitle
+            title="LINE ミニアプリ Maker"
+            subtitle="if(塾) LINE ミニアプリ自動生成室 — 申請情報まで一式作成"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              setBrief(SAMPLE_BRIEF);
+              startGenerate(SAMPLE_BRIEF);
+            }}
+            title="サンプルの会員証アプリで入力をスキップして即生成（動作テスト用）"
+            className="shrink-0 inline-flex items-center gap-2 text-base font-medium text-amber-800 px-5 py-2.5 rounded-full bg-amber-100 border-2 border-dashed border-amber-400 hover:bg-amber-200 shadow-sm"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" aria-hidden>
+              <path d="M9 3h6" />
+              <path d="M10 3v6.5L5.5 18a2 2 0 0 0 1.8 3h9.4a2 2 0 0 0 1.8-3L14 9.5V3" />
+              <line x1="8.5" y1="14" x2="15.5" y2="14" />
+            </svg>
+            テスト生成（サンプル会員証）
+          </button>
+        </div>
 
         <Stepper step={step} />
 
@@ -324,7 +378,7 @@ export default function Home() {
             </button>
           ) : (
             <button
-              onClick={startGenerate}
+              onClick={() => startGenerate()}
               disabled={brief.features.length === 0}
               className="px-8 py-3.5 rounded-full text-lg font-medium text-white bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-400 hover:to-emerald-400 disabled:from-stone-300 disabled:to-stone-300 disabled:text-stone-500 shadow-md"
             >
@@ -1166,6 +1220,19 @@ function ResultView({ id, onReset }: { id: string; onReset: () => void }) {
       .catch(() => setAppInfo(null));
   }, [id]);
 
+  const downloadAppInfo = () => {
+    if (!appInfo) return;
+    const blob = new Blob([appInfo], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "LINE入力情報.md";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   const publish = async () => {
     setPublishing(true);
     setPublishLogs([]);
@@ -1229,6 +1296,13 @@ function ResultView({ id, onReset }: { id: string; onReset: () => void }) {
           >
             ZIP ダウンロード
           </a>
+          <button
+            onClick={downloadAppInfo}
+            disabled={!appInfo}
+            className="text-sm text-white px-4 py-2 rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 hover:from-sky-400 hover:to-indigo-400 shadow-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            LINE入力情報.md
+          </button>
           <button
             onClick={() => setPublishOpen((v) => !v)}
             className="text-sm text-white px-4 py-2 rounded-full bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-400 hover:to-purple-500 shadow-sm font-medium"
@@ -1299,30 +1373,69 @@ function ResultView({ id, onReset }: { id: string; onReset: () => void }) {
 
       <div className="flex-1 overflow-y-auto bg-stone-50">
         <div className="max-w-4xl mx-auto px-6 py-8 space-y-6">
-          <div className="rounded-2xl bg-white border border-stone-200 shadow-sm p-6 space-y-3">
-            <h2 className="text-xl font-bold text-stone-800">次の手順</h2>
-            <ol className="list-decimal list-inside space-y-2 text-stone-700 leading-relaxed">
-              <li>「ZIP ダウンロード」または「GitHub にプッシュ」で成果物を取得</li>
-              <li>取得後、フォルダで <code className="bg-stone-100 px-1.5 py-0.5 rounded font-mono text-sm">npm install</code> → <code className="bg-stone-100 px-1.5 py-0.5 rounded font-mono text-sm">npm run dev</code> で動作確認</li>
-              <li>Vercel にデプロイ（環境変数 <code className="bg-stone-100 px-1.5 py-0.5 rounded font-mono text-sm">VITE_LIFF_ID</code> を設定）</li>
-              <li>LINE Developers Console で LIFF を作成し、エンドポイント URL に Vercel の URL を登録</li>
-              <li>下の「LINE入力情報.md」を見ながら審査申請</li>
+          <div className="rounded-2xl bg-white border-2 border-emerald-200 shadow-sm overflow-hidden">
+            <div className="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-emerald-100/80 to-green-100/50 border-b-2 border-emerald-200">
+              <span className="w-12 h-12 rounded-2xl bg-white text-emerald-600 flex items-center justify-center shrink-0 shadow-sm ring-2 ring-white">
+                <FieldIcon name="target" />
+              </span>
+              <div>
+                <h2 className="text-2xl font-extrabold text-emerald-700 tracking-wide leading-snug">次の手順</h2>
+                <p className="text-base text-stone-500 leading-relaxed">この順番どおりに進めれば LINE 審査までたどり着けるぞ</p>
+              </div>
+            </div>
+            <ol className="divide-y divide-stone-100">
+              {[
+                <>「<b className="text-emerald-700">ZIP ダウンロード</b>」または「<b className="text-violet-600">GitHub にプッシュ</b>」で成果物を取得する</>,
+                <>取得したフォルダで <code className="bg-stone-100 text-stone-800 px-1.5 py-0.5 rounded font-mono text-sm">npm install</code> → <code className="bg-stone-100 text-stone-800 px-1.5 py-0.5 rounded font-mono text-sm">npm run dev</code> で動作確認</>,
+                <>Vercel にデプロイ（環境変数 <code className="bg-stone-100 text-stone-800 px-1.5 py-0.5 rounded font-mono text-sm">VITE_LIFF_ID</code> を設定）</>,
+                <>LINE Developers Console で <b>LIFF</b> を作成し、エンドポイント URL に Vercel の URL を登録</>,
+                <>右下の <b className="text-sky-700">LINE入力情報.md</b> を見ながら審査申請</>,
+              ].map((s, i) => (
+                <li key={i} className="flex items-start gap-4 px-6 py-4 hover:bg-emerald-50/40 transition-colors">
+                  <span className="shrink-0 w-9 h-9 rounded-full bg-gradient-to-br from-emerald-500 to-green-500 text-white text-lg font-bold flex items-center justify-center shadow-sm">
+                    {i + 1}
+                  </span>
+                  <div className="flex-1 text-lg text-stone-700 leading-relaxed pt-1">{s}</div>
+                </li>
+              ))}
             </ol>
           </div>
 
-          <div className="rounded-2xl bg-white border border-stone-200 shadow-sm p-6 space-y-3">
-            <h2 className="text-2xl font-bold text-stone-800 flex items-center gap-2">
-              LINE入力情報.md（審査申請まとめ）
-            </h2>
-            {appInfo ? (
-              <pre className="whitespace-pre-wrap break-words bg-stone-50 border border-stone-200 rounded-xl p-4 text-sm leading-relaxed text-stone-700 max-h-[480px] overflow-y-auto">
-                {appInfo}
-              </pre>
-            ) : (
-              <p className="text-stone-500 text-sm">
-                LINE入力情報.md を読み込み中… 生成されていない場合は ZIP 内をご確認ください。
-              </p>
-            )}
+          <div className="rounded-2xl bg-white border-2 border-sky-200 shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between gap-3 px-6 py-4 bg-gradient-to-r from-sky-100/80 to-indigo-100/40 border-b-2 border-sky-200">
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="w-12 h-12 rounded-2xl bg-white text-sky-600 flex items-center justify-center shrink-0 shadow-sm ring-2 ring-white">
+                  <FieldIcon name="doc" />
+                </span>
+                <div className="min-w-0">
+                  <h2 className="text-2xl font-extrabold text-sky-700 tracking-wide leading-snug">LINE入力情報.md</h2>
+                  <p className="text-base text-stone-500 leading-relaxed">審査申請まとめ（このファイルだけ別途ダウンロードできます）</p>
+                </div>
+              </div>
+              <button
+                onClick={downloadAppInfo}
+                disabled={!appInfo}
+                className="shrink-0 inline-flex items-center gap-2 text-sm font-medium text-white px-4 py-2.5 rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 hover:from-sky-400 hover:to-indigo-400 shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" aria-hidden>
+                  <path d="M12 3v12" />
+                  <path d="M7 11l5 5 5-5" />
+                  <path d="M4 20h16" />
+                </svg>
+                .md をダウンロード
+              </button>
+            </div>
+            <div className="p-6">
+              {appInfo ? (
+                <pre className="whitespace-pre-wrap break-words bg-stone-50 border border-stone-200 rounded-xl p-4 text-sm leading-relaxed text-stone-700 max-h-[480px] overflow-y-auto">
+                  {appInfo}
+                </pre>
+              ) : (
+                <p className="text-stone-500 text-sm">
+                  LINE入力情報.md を読み込み中… 生成されていない場合は ZIP 内をご確認ください。
+                </p>
+              )}
+            </div>
           </div>
         </div>
       </div>
