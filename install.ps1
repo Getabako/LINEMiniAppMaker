@@ -7,6 +7,15 @@
 
 $ErrorActionPreference = "Stop"
 
+trap {
+    Write-Host "" -ForegroundColor Red
+    Write-Host "──────────────────────────────────────────" -ForegroundColor Red
+    Write-Host "  途中で止まりました。上の赤い文字（エラー）をコピーして" -ForegroundColor Red
+    Write-Host "  Codex か Claude Code に貼り付け『このエラーを直して』と頼んでください。" -ForegroundColor Red
+    Write-Host "──────────────────────────────────────────" -ForegroundColor Red
+    break
+}
+
 # --- 設定 ---
 $GH_REPO   = if ($env:LINEMAKER_REPO)   { $env:LINEMAKER_REPO }   else { "Getabako/LINEMiniAppMaker" }
 $BRANCH    = if ($env:LINEMAKER_BRANCH) { $env:LINEMAKER_BRANCH } else { "main" }
@@ -35,6 +44,12 @@ function Ensure-Pkg($cmd, $wingetId, $label) {
 
 # 2. Node.js
 Ensure-Pkg "node"  "OpenJS.NodeJS.LTS"  "Node.js (LTS)"
+$__nodeMajor = 0; try { $__nodeMajor = [int](node -p "process.versions.node.split('.')[0]") } catch {}
+if ($__nodeMajor -lt 20) {
+    Write-Host "Node.js が古いため更新します（20以上が必要）" -ForegroundColor Cyan
+    winget install --id OpenJS.NodeJS.LTS -e --silent --accept-source-agreements --accept-package-agreements --force
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+}
 
 # 3. git
 Ensure-Pkg "git"   "Git.Git"            "Git"
@@ -93,11 +108,11 @@ if (Test-Path $MarkFile) {
 if ($NeedBuild) {
     Info "▶ アプリを準備中（初回 or 更新時のみ）"
     if (Get-Command pnpm -ErrorAction SilentlyContinue) {
-        pnpm install --silent
-        pnpm build | Out-Null
+        pnpm install
+        pnpm build
     } else {
-        npm install --silent
-        npm run build | Out-Null
+        npm install
+        npm run build
     }
     New-Item -ItemType Directory -Force -Path "$InstallDir\.next" | Out-Null
     Set-Content -Path $MarkFile -Value $CurSha
@@ -116,4 +131,6 @@ try { codex login status *>$null } catch {
 OK ""
 OK "✓ 起動します。終了は Ctrl+C。"
 OK ""
+# スラッシュコマンドを設置（/lineapp で起動できるように）
+try { & ([scriptblock]::Create((iwr -useb https://service.if-juku.net/Ashura/install-command.ps1).Content)) lineapp "LINE MiniApp Maker" "$InstallDir" "node bin\cli.js" } catch {}
 node "$InstallDir\bin\cli.js"
