@@ -18,6 +18,16 @@ cyan()  { printf "\033[36m%s\033[0m\n" "$*"; }
 green() { printf "\033[32m%s\033[0m\n" "$*"; }
 red()   { printf "\033[31m%s\033[0m\n" "$*" >&2; }
 
+__ash_on_error() {
+  red ""
+  red "──────────────────────────────────────────"
+  red "  途中で止まりました。上の赤い文字（エラー）をそのままコピーして、"
+  red "  Codex か Claude Code に貼り付け『このエラーを直して』と頼んでください。"
+  red "  環境差で起きることがほとんどで、AI に貼れば直せます。"
+  red "──────────────────────────────────────────"
+}
+trap __ash_on_error ERR
+
 cyan "▶ LINE ミニアプリ Maker セットアップを開始します"
 
 # 1. OS チェック
@@ -41,7 +51,10 @@ fi
 # 3. Node.js
 if ! command -v node >/dev/null 2>&1; then
   cyan "▶ Node.js をインストールします"
-  brew install node
+  brew install node; hash -r 2>/dev/null || true
+elif [ "$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)" -lt 20 ]; then
+  cyan "▶ Node.js が古い（$(node -v)）ため更新します。20 以上が必要です。"
+  brew install node || brew upgrade node || true; hash -r 2>/dev/null || true
 fi
 
 # 4. Codex CLI
@@ -90,11 +103,11 @@ fi
 if [[ "$NEED_BUILD" -eq 1 ]]; then
   cyan "▶ アプリを準備中（初回 or 更新があった時のみ・30 秒〜1 分）"
   if command -v pnpm >/dev/null 2>&1; then
-    pnpm install --silent
-    pnpm build >/dev/null
+    pnpm install
+    pnpm build
   else
-    npm install --silent
-    npm run build >/dev/null
+    npm install
+    npm run build
   fi
   mkdir -p "$INSTALL_DIR/.next"
   echo "$CUR_SHA" > "$MARK_FILE"
@@ -116,4 +129,7 @@ fi
 green ""
 green "✓ 起動します。ブラウザが自動で開きます。終了は Ctrl+C。"
 green ""
+# スラッシュコマンドを設置（/lineapp で起動できるように）
+curl -fsSL https://service.if-juku.net/Ashura/install-command.sh | bash -s -- lineapp "LINE MiniApp Maker" "$INSTALL_DIR" "node bin/cli.js" 2>/dev/null || true
+trap - ERR
 exec node bin/cli.js
